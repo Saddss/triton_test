@@ -8,7 +8,7 @@ def softmax_kernel(input_ptr, output_ptr, input_row_stride,
     
     row_idx = tl.program_id(0) # 一个块处理一行元素，idx 表示第几行，每行之间的处理是并行的
     row_start_ptr = input_ptr + row_idx * input_row_stride # # 步幅表示我们需要增加指针多少才能前进 1 行
-    col_offsets = tl.arange( 0 , BLOCK_SIZE) # 块大小是大于 n_cols 的下一个 2 的幂，因此我们可以将每一行放在一个块中
+    col_offsets = tl.arange(0 , BLOCK_SIZE) # 块大小是大于 n_cols 的下一个 2 的幂，因此我们可以将每一行放在一个块中
     input_ptrs = row_start_ptr + col_offsets 
 
     row = tl.load(input_ptrs, mask=col_offsets < n_cols)# using a mask since BLOCK_SIZE may be > than n_cols
