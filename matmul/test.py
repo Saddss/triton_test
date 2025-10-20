@@ -1,7 +1,7 @@
 import torch
 
-from gemm_triton_block1 import block_matmul_triton as block_matmul_triton_block
-from gemm_triton_group import block_matmul_triton as block_matmul_triton_group
+from matmul_triton_block1 import block_matmul_triton as block_matmul_triton_block
+from matmul_triton_group import block_matmul_triton as block_matmul_triton_group
 
 
 def profile(func, inputs, num_warmups=50, num_iters=50):
