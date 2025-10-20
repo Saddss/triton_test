@@ -22,7 +22,7 @@ def block_matmul_kernel(input_ptr, weight_ptr, output_ptr, M, N, K, BLOCK_SIZE_M
     offset_output = offset_m * N + offset_n
     tl.store(output_ptr + offset_output, output, mask=(offset_m < M) & (offset_n < N))
 
-def block_matmul(input, weight):
+def block_matmul_triton(input, weight):
     M, K_1 = input.shape
     K_2, N = weight.shape
     assert K_1 == K_2
@@ -30,7 +30,7 @@ def block_matmul(input, weight):
     BLOCK_SIZE_M = 64
     BLOCK_SIZE_N = 64
     BLOCK_SIZE_K = 32
-    grid = (triton.cdiv(M, BLOCK_SIZE_M), triton.cdiv(N, BLOCK_SIZE_N), 1)
+    grid = (triton.cdiv(M, BLOCK_SIZE_M), triton.cdiv(N, BLOCK_SIZE_N))
     block_matmul_kernel[grid](
     input,
     weight,
