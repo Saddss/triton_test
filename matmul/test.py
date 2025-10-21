@@ -1,46 +1,29 @@
 import torch
-
-from matmul_triton_block1 import block_matmul_triton as block_matmul_triton_block
+import triton
+from matmul_triton_block3 import block_matmul_triton as block_matmul_triton_block
 from matmul_triton_group import block_matmul_triton as block_matmul_triton_group
+@triton.testing.perf_report(
+    triton.testing.Benchmark(
+        x_names=['M', 'N', 'K'],  # 用作图表x轴的参数名
+        x_vals=[128 * i for i in range(2, 64)],  # `x_name`的不同可能值
+        line_arg='provider',  # 对应于图表中不同线条的参数名
+        line_vals=['cublas', 'triton'],  # `line_arg`的可能值
+        line_names=["cuBLAS", "Triton"],  # 线条的标签名
+        styles=[('green', '-'), ('blue', '-')],  # 线条样式
+        ylabel="TFLOPS",  # y轴的标签名
+        plot_name="matmul-performance",  # 图表的名称，也用作保存图表的文件名
+        args={},  # 其他参数
+    )
+)
+def benchmark(M, N, K, provider):
+    a = torch.randn((M, K), device='cuda', dtype=torch.float16)
+    b = torch.randn((K, N), device='cuda', dtype=torch.float16)
+    quantiles = [0.5, 0.2, 0.8]
+    if provider == 'cublas':
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.matmul(a, b), quantiles=quantiles)
+    if provider == 'triton':
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: block_matmul_triton_group(a, b), quantiles=quantiles)
+    perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+    return perf(ms), perf(max_ms), perf(min_ms)
 
-
-def profile(func, inputs, num_warmups=50, num_iters=50):
-    torch.cuda.synchronize()
-    for _ in range(num_warmups):
-        func(*inputs)
-    torch.cuda.synchronize()
-    start = torch.cuda.Event(enable_timing=True)
-    end = torch.cuda.Event(enable_timing=True)
-    start.record()
-    for _ in range(num_iters):
-        func(*inputs)
-    end.record()
-    torch.cuda.synchronize()
-    latency = start.elapsed_time(end) / num_iters
-    return latency
-
-
-def test_matmul(M: int, N: int, K: int):
-    a = torch.randn((M, K), dtype=torch.float16, device='cuda', requires_grad=False)
-    b = torch.randn((K, N), dtype=torch.float16, device='cuda', requires_grad=False)
-
-    c_torch = torch.matmul(a, b)
-    c_triton_block = block_matmul_triton_block(a, b)
-    c_triton_group = block_matmul_triton_group(a, b)
-
-    torch.testing.assert_close(c_triton_block, c_torch, atol=1e-3, rtol=1e-3)
-    torch.testing.assert_close(c_triton_group, c_torch, atol=1e-3, rtol=1e-3)
-
-
-    latency_torch = profile(torch.matmul, (a, b))
-    latency_triton_block = profile(block_matmul_triton_block, (a, b))
-    latency_triton_group = profile(block_matmul_triton_group, (a, b))
-
-    print(f'Problem size: ({M}, {N}, {K})')
-    print(f'Torch GeMM Latency: {latency_torch:.3f} ms')
-    print(f'Triton Block GeMM Latency: {latency_triton_block:.3f} ms')
-    print(f'Triton Group GeMM Latency: {latency_triton_group:.3f} ms')
-
-
-if __name__ == '__main__':
-    test_matmul(M=65536//8, N=65536//8, K=8192)
+benchmark.run(show_plots=True, print_data=True, save_path='./output')
