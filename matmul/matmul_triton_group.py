@@ -60,7 +60,7 @@ if __name__ == '__main__':
     input = torch.randn((input_dim, hidden_dim), device='cuda', dtype=torch.float16)
     weight = torch.randn((hidden_dim, output_dim), device='cuda', dtype=torch.float16)
 
-    output = block_matmul(input, weight)
+    output = block_matmul_triton(input, weight)
     golden = input @ weight
     print(output.shape)  
     print(golden.shape)

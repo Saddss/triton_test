@@ -5,7 +5,7 @@ import torch
 @triton.jit
 def softmax_kernel(input_ptr, output_ptr, input_row_stride, 
                 output_row_stride, n_cols, BLOCK_SIZE: tl.constexpr):
-    
+    input_ptr = input_ptr.to(tl.pointer_type(tl.float32))
     row_idx = tl.program_id(0) # 一个块处理一行元素，idx 表示第几行，每行之间的处理是并行的
     row_start_ptr = input_ptr + row_idx * input_row_stride # # 步幅表示我们需要增加指针多少才能前进 1 行
     col_offsets = tl.arange(0 , BLOCK_SIZE) # 块大小是大于 n_cols 的下一个 2 的幂，因此我们可以将每一行放在一个块中
@@ -50,6 +50,11 @@ def softmax(x):
 
     return y
 
-x = torch.randn((5, 5), device='cuda', dtype=torch.float32)
-print(x)
-print(softmax(x))
+if __name__ == '__main__':
+    x = torch.randn((4096, 8192), device='cuda', dtype=torch.float16)
+    torch_output = torch.softmax(x, dim=-1)
+    triton_output = softmax(x)
+    if torch.allclose(triton_output, torch_output):
+        print(True)
+    else:
+        print(False)

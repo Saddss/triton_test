@@ -5,7 +5,7 @@ import triton.language as tl
 @triton.jit
 def softmax_kernel(input_ptr, output_ptr, stride_input_row, stride_output_row, BLOCK_SIZE: tl.constexpr):
     input_ptr = input_ptr.to(tl.pointer_type(tl.float32))
-    output_ptr = output_ptr.to(tl.pointer_type(tl.float32))
+    # output_ptr = output_ptr.to(tl.pointer_type(tl.float32))
 
     pid = tl.program_id(0)
     block_start = pid * stride_input_row
@@ -31,15 +31,15 @@ def softmax_kernel(input_ptr, output_ptr, stride_input_row, stride_output_row, B
         x = tl.load(input_ptr + block_start + offsets, mask=input_mask, other=float('-inf'))
         exp_x = tl.exp(x - m) / d
         output_mask = offsets < stride_output_row
-        tl.store(output_ptr + block_start + offsets, exp_x, mask=output_mask)
+        tl.store(output_ptr + block_start + offsets, exp_x.to(tl.float16), mask=output_mask)
 
 def softmax_triton(input, output, stride_input_row, stride_output_row):
-    BLOCK_SIZE = 128
+    BLOCK_SIZE = 2048
     grid = (input.shape[0],)
     softmax_kernel[grid](input, output, stride_input_row, stride_output_row, BLOCK_SIZE=BLOCK_SIZE)
 
 if __name__ == '__main__':
-    input = torch.randn((128, 5000), device='cuda:0', dtype=torch.float32)
+    input = torch.randn((4096, 8192), device='cuda:0', dtype=torch.float16)
     output = torch.empty_like(input, device=input.device, dtype=input.dtype)
     output_torch = torch.softmax(input, dim=-1)
     softmax_triton(input, output, input.stride(0), output.stride(0))
