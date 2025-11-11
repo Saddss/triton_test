@@ -34,15 +34,17 @@ def matrix_transpose_kernel(
 # input, output are tensors on the GPU
 def solve(input: torch.Tensor, output: torch.Tensor, rows: int, cols: int):
     BLOCK_SIZE = 32
-    stride_ir, stride_ic = cols, 1  
-    stride_or, stride_oc = rows, 1
+    # stride_ir, stride_ic = cols, 1  
+    # stride_or, stride_oc = rows, 1
     
     grid = (triton.cdiv(rows, BLOCK_SIZE), triton.cdiv(cols, BLOCK_SIZE))
     matrix_transpose_kernel[grid](
         input, output,
         rows, cols,
-        stride_ir, stride_ic,
-        stride_or, stride_oc,
+        # stride_ir, stride_ic,
+        # stride_or, stride_oc,
+        *input.stride(),
+        *output.stride(),
         BLOCK_SIZE=BLOCK_SIZE
     ) 
 
