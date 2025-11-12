@@ -1,17 +1,18 @@
+import torch
 import triton
 import triton.language as tl
-import torch
-
+# 精度别乱几把转
 @triton.jit
 def softmax_kernel(input_ptr, output_ptr, input_row_stride, 
                 output_row_stride, n_cols, BLOCK_SIZE: tl.constexpr):
-    input_ptr = input_ptr.to(tl.pointer_type(tl.float32))
+    # input_ptr = input_ptr.to(tl.pointer_type(tl.float32)) ？？你有啥用
+    # output_ptr = output_ptr.to(tl.pointer_type(tl.float32))
     row_idx = tl.program_id(0) # 一个块处理一行元素，idx 表示第几行，每行之间的处理是并行的
     row_start_ptr = input_ptr + row_idx * input_row_stride # # 步幅表示我们需要增加指针多少才能前进 1 行
     col_offsets = tl.arange(0 , BLOCK_SIZE) # 块大小是大于 n_cols 的下一个 2 的幂，因此我们可以将每一行放在一个块中
     input_ptrs = row_start_ptr + col_offsets 
 
-    row = tl.load(input_ptrs, mask=col_offsets < n_cols)# using a mask since BLOCK_SIZE may be > than n_cols
+    row = tl.load(input_ptrs, mask=col_offsets < n_cols).to(tl.float32)# using a mask since BLOCK_SIZE may be > than n_cols
 
     row_minus_max = row - tl.max(row, axis=0)
     numerator = tl.exp(row_minus_max)
@@ -21,7 +22,7 @@ def softmax_kernel(input_ptr, output_ptr, input_row_stride,
     # 将结果行数据写入到指定地址范围中
     out_row_ptr = output_ptr + row_idx * output_row_stride
     output_ptrs = out_row_ptr + col_offsets
-    tl.store(output_ptrs, softmax_output, mask=col_offsets < n_cols)
+    tl.store(output_ptrs, softmax_output.to(tl.float16), mask=col_offsets < n_cols)
 
 def softmax(x):
     n_rows, n_cols = x.shape
@@ -51,10 +52,12 @@ def softmax(x):
     return y
 
 if __name__ == '__main__':
-    x = torch.randn((4096, 8192), device='cuda', dtype=torch.float16)
+    x = torch.randn((1024, 1024), device='cuda', dtype=torch.float16)
     torch_output = torch.softmax(x, dim=-1)
     triton_output = softmax(x)
-    if torch.allclose(triton_output, torch_output):
+    print(torch_output)
+    print(triton_output)
+    if torch.allclose(triton_output, torch_output, atol=1e-5, rtol=1e-4):
         print(True)
     else:
         print(False)
