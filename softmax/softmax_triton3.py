@@ -35,7 +35,7 @@ def softmax_kernel(input_ptr, output_ptr,
         x_sub_max = x - m
         exp_x_sub_max = tl.exp(x_sub_max)
         softmax_output = exp_x_sub_max / d
-        tl.store(output_ptr + row_offsets[:, None] * output_row_stride + tile_offsets[None, :] * output_col_stride, softmax_output.to(tl.float16), mask=mask_row[:, None] & mask_col[None, :])
+        tl.store(output_ptr + row_offsets[:, None] * output_row_stride + tile_offsets[None, :] * output_col_stride, softmax_output, mask=mask_row[:, None] & mask_col[None, :])
         
 
 def softmax(x):
